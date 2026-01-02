@@ -3,6 +3,105 @@
 A production-ready End-to-End Recommender System & Semantic Search portfolio project.
 This platform demonstrates a full ML lifecycle: Data Ingestion -> Vector Embeddings -> Retrieval -> Ranking -> Serving.
 
+## 🏆 Key Results & Metrics
+
+| Metric | Value | Description |
+|--------|-------|-------------|
+| **Ranker Accuracy** | 89.7% | XGBoost classifier on click prediction |
+| **Search Latency** | <50ms | Vector similarity search (HNSW index) |
+| **Items Indexed** | 500 | News articles with 384-dim embeddings |
+| **Users Served** | 100 | Personalized recommendation candidates |
+| **RAG Response Time** | ~5s | End-to-end with Phi-3 (4-bit quantized) |
+
+## 🏗️ System Architecture
+
+```mermaid
+graph TB
+    subgraph "User Interfaces"
+        UI[Streamlit Dashboard<br/>:8501]
+        API_DOCS[FastAPI Swagger<br/>:8001/docs]
+        MB[Metabase Analytics<br/>:3001]
+    end
+
+    subgraph "API Layer"
+        FASTAPI[FastAPI Server<br/>:8001]
+    end
+
+    subgraph "ML Services"
+        MLX[MLX LLM Server<br/>Phi-3 4-bit<br/>:8502]
+        MLFLOW[MLflow Tracking<br/>:5005]
+    end
+
+    subgraph "Data Layer"
+        PG[(PostgreSQL + pgvector<br/>:5432)]
+    end
+
+    UI --> FASTAPI
+    API_DOCS --> FASTAPI
+    FASTAPI --> PG
+    FASTAPI --> MLX
+    FASTAPI --> MLFLOW
+    MB --> PG
+```
+
+## 📊 ML Pipeline Architecture
+
+```mermaid
+flowchart LR
+    subgraph Ingestion
+        A[Raw Data] --> B[Synthetic Generator]
+        B --> C[PostgreSQL Tables]
+    end
+
+    subgraph Feature_Engineering
+        C --> D[Process Interactions]
+        D --> E[User-Item Matrix]
+        E --> F[SBERT Embeddings<br/>384-dim vectors]
+    end
+
+    subgraph Model_Training
+        F --> G[ALS Collaborative Filter]
+        F --> H[Popularity Baseline]
+        G --> I[XGBoost Ranker]
+        H --> I
+    end
+
+    subgraph Serving
+        I --> J[Batch Scoring]
+        J --> K["/recommend API"]
+        F --> L[Vector Search]
+        L --> M["/search API"]
+        M --> N[RAG Context]
+        N --> O[Phi-3 LLM]
+        O --> P["/chat API"]
+    end
+```
+
+## 🔬 Model Performance
+
+### Recommendation System
+| Component | Model | Metrics |
+|-----------|-------|---------|
+| Candidate Generation | ALS (Implicit) | Factors: 64, α: 2.0 |
+| Popularity Fallback | Frequency Count | Top-100 items |
+| Reranker | XGBoost | Accuracy: 89.7%, Depth: 3 |
+
+### Semantic Search
+| Property | Value |
+|----------|-------|
+| Embedding Model | `all-MiniLM-L6-v2` |
+| Vector Dimension | 384 |
+| Index Type | HNSW (pgvector) |
+| Distance Metric | Cosine Similarity |
+
+### RAG Chat
+| Property | Value |
+|----------|-------|
+| LLM | Phi-3-mini-4k-instruct (4-bit) |
+| Framework | Apple MLX |
+| Context Window | 4096 tokens |
+| Retrieval | Top-5 similar articles |
+
 ## Features
 *   **Vector Semantic Search**: Uses `Sentence-Transformers` and `pgvector` to find relevant items by meaning, not just keywords.
 *   **Hybrid Recommendation Strategy**:
