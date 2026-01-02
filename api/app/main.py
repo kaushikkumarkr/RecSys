@@ -77,9 +77,22 @@ class RecommendationResponse(BaseModel):
     rank: int
     reasons: Optional[str] = None
     strategy: Optional[str] = "batch"
+    experiment_variant: Optional[str] = None  # A/B test variant
+
+# --- Experiment Bucketing ---
+import hashlib
+
+def get_experiment_variant(user_id: str, experiment_name: str = "ranker_v2", traffic_percent: float = 50.0) -> str:
+    """Deterministic hash-based bucketing for A/B tests."""
+    key = f"{user_id}:{experiment_name}"
+    bucket = int(hashlib.md5(key.encode()).hexdigest(), 16) % 100
+    return "treatment" if bucket < traffic_percent else "control"
 
 @app.post("/recommend", response_model=List[RecommendationResponse])
 def recommend(req: RecommendationRequest, db: Session = Depends(get_db)):
+    # Assign user to experiment
+    variant = get_experiment_variant(req.user_id, "ranker_v2", 50.0)
+    
     # 1. Fetch from Recommendation Daily Snapshot (Batch Pre-computed)
     candidates = db.execute(text("""
         SELECT r.item_id, r.score, r.rank, r.reasons, i.title, i.category
@@ -100,6 +113,9 @@ def recommend(req: RecommendationRequest, db: Session = Depends(get_db)):
             ORDER BY c.rank ASC
             LIMIT :k
         """), {"k": req.k}).fetchall()
+    
+    # Log experiment impression (would go to experiment_events table in production)
+    # For now, we just include variant in response
         
     return [
         RecommendationResponse(
@@ -109,7 +125,8 @@ def recommend(req: RecommendationRequest, db: Session = Depends(get_db)):
             score=row.score,
             rank=row.rank,
             reasons=row.reasons,
-            strategy="batch" if hasattr(row, 'reasons') and row.reasons != 'Trending now' else 'popular'
+            strategy="batch" if hasattr(row, 'reasons') and row.reasons != 'Trending now' else 'popular',
+            experiment_variant=variant
         ) for row in candidates
     ]
 

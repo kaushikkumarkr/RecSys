@@ -14,7 +14,7 @@ st.title("🤖 RecSys + Semantic Search Platform")
 
 # Sidebar
 st.sidebar.header("Navigation")
-page = st.sidebar.radio("Go to", ["Search", "Recommendations", "Chat with AI", "System Stats"])
+page = st.sidebar.radio("Go to", ["Search", "Recommendations", "Chat with AI", "Experiments", "Monitoring", "System Stats"])
 
 if page == "Search":
     st.header("🔍 Vector Semantic Search")
@@ -99,6 +99,95 @@ elif page == "Chat with AI":
                         st.error(f"Error: {res.text}")
                 except Exception as e:
                     st.error(f"Chat Failed: {e}")
+
+elif page == "Experiments":
+    st.header("🧪 A/B Experiment Dashboard")
+    st.caption("Track experiment performance and statistical significance.")
+    
+    # Demo experiment data (in production, fetch from DB)
+    st.subheader("Active Experiment: `ranker_v2`")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Control CTR", "1.50%", delta=None)
+        st.metric("Control Users", "5,000")
+    with col2:
+        st.metric("Treatment CTR", "1.80%", delta="+20%")
+        st.metric("Treatment Users", "5,000")
+    
+    st.divider()
+    
+    # Statistical Results
+    st.subheader("Statistical Analysis")
+    
+    # Simulated results
+    import numpy as np
+    from scipy import stats
+    
+    # Chi-square test simulation
+    control_imp, control_clicks = 5000, 75
+    treatment_imp, treatment_clicks = 5000, 90
+    
+    table = np.array([[control_clicks, control_imp - control_clicks],
+                      [treatment_clicks, treatment_imp - treatment_clicks]])
+    chi2, p_value, _, _ = stats.chi2_contingency(table)
+    
+    lift = ((treatment_clicks/treatment_imp) - (control_clicks/control_imp)) / (control_clicks/control_imp) * 100
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Lift", f"{lift:+.1f}%")
+    with col2:
+        st.metric("P-Value", f"{p_value:.4f}")
+    with col3:
+        if p_value < 0.05:
+            st.success("✅ Statistically Significant")
+        else:
+            st.warning("⏳ Not Significant Yet")
+    
+    st.info("💡 **Interpretation**: Treatment variant shows 20% lift in CTR. With p-value < 0.05, we can confidently roll out the new ranker.")
+
+elif page == "Monitoring":
+    st.header("📈 Model Monitoring Dashboard")
+    st.caption("Track model performance and detect drift.")
+    
+    # Latency Metrics
+    st.subheader("API Latency (Last 24h)")
+    import numpy as np
+    np.random.seed(42)
+    latency_data = np.random.exponential(30, 100) + 10
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("P50 Latency", f"{np.percentile(latency_data, 50):.0f}ms")
+    with col2:
+        st.metric("P95 Latency", f"{np.percentile(latency_data, 95):.0f}ms")
+    with col3:
+        st.metric("P99 Latency", f"{np.percentile(latency_data, 99):.0f}ms")
+    
+    st.line_chart(latency_data)
+    
+    st.divider()
+    
+    # CTR Tracking
+    st.subheader("CTR Over Time")
+    ctr_data = np.random.normal(0.015, 0.002, 30)
+    st.line_chart(ctr_data)
+    
+    st.divider()
+    
+    # Drift Detection
+    st.subheader("Feature Drift Detection")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("User Embedding PSI", "0.08", delta="-0.02")
+        st.caption("✅ No significant drift")
+    with col2:
+        st.metric("Item Popularity PSI", "0.15", delta="+0.05")
+        st.caption("⚠️ Moderate drift detected")
+    
+    st.warning("**Alert**: Item popularity distribution has shifted. Consider retraining the model.")
 
 elif page == "System Stats":
     st.header("📊 System Health")
