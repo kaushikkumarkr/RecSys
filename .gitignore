@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+.venv/
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
+
+# Project Data & Models
+data/
+*.pkl
+*.parquet
+
+# Docker Volumes (Local mounts)
+postgres_data/
+metabase_data/
+mlruns/

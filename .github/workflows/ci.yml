@@ -1,0 +1,83 @@
+name: RecSys Platform CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    services:
+      db:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: user
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: recsys
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Data Quality Checks
+      working-directory: .
+      env:
+        POSTGRES_USER: user
+        POSTGRES_PASSWORD: password
+        POSTGRES_DB: recsys
+        POSTGRES_HOST: localhost
+        POSTGRES_PORT: 5432
+      run: |
+        # We need data first. In CI, we use the synthetic download script.
+        python pipelines/ingest/download.py
+        
+        # Load data (creates tables)
+        # Note: We need to wait for extension? The service image has pgvector installed.
+        # But load_raw.py tries to create extension.
+        python pipelines/ingest/load_raw.py
+        
+        # Run Great Expectations
+        python pipelines/quality/check_data.py
+
+    - name: Train Models (Smoke Test)
+      env:
+        POSTGRES_USER: user
+        POSTGRES_PASSWORD: password
+        POSTGRES_DB: recsys
+        POSTGRES_HOST: localhost
+        POSTGRES_PORT: 5432
+        MLFLOW_TRACKING_URI: "file:///tmp/mlruns" # Use local file for CI
+      run: |
+        python pipelines/ingest/process_interactions.py
+        python pipelines/embeddings/embed.py
+        python pipelines/features/build_features.py
+        python pipelines/models/train_ranker.py
+
+    - name: Run Evaluator
+      env:
+        POSTGRES_USER: user
+        POSTGRES_PASSWORD: password
+        POSTGRES_DB: recsys
+        POSTGRES_HOST: localhost
+        POSTGRES_PORT: 5432
+      run: |
+        python pipelines/evaluation/evaluate.py
