@@ -100,3 +100,26 @@ GitHub Actions workflow is defined in `.github/workflows/ci.yml`. It runs:
 1.  Linting & Setup
 2.  Synthetic Data Gen
 3.  Full Pipeline Execution (Smoke Test)
+
+## GenAI / RAG Chat (MLX)
+The platform includes a **Retrieval Augmented Generation (RAG)** chat feature powered by a local LLM.
+
+### How it Works
+1.  User asks a question in the **Chat with AI** tab.
+2.  The API performs a vector search to find relevant articles.
+3.  Retrieved articles are passed as context to the LLM.
+4.  The LLM generates an answer based on the context.
+
+### Running the MLX Server (Apple Silicon)
+For GPU-accelerated inference on Mac M1/M2/M3:
+```bash
+# Install MLX (host machine)
+pip install mlx mlx-lm
+
+# Start MLX Server
+python services/mlx_server.py
+```
+The server runs on port 8502. The API container will call it via `host.docker.internal`.
+
+### Fallback Behavior
+If the MLX server is unavailable, the `/chat` endpoint returns a summarized list of relevant articles without LLM generation.

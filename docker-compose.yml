@@ -62,6 +62,19 @@ services:
       MB_DB_PASS: ${POSTGRES_PASSWORD}
       MB_DB_HOST: db
 
+  dashboard:
+    build: .
+    container_name: recsys_dashboard
+    command: streamlit run dashboard/app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    volumes:
+      - .:/app
+    environment:
+      - API_URL=http://api:8000
+    depends_on:
+      - api
+
 volumes:
   postgres_data:
   metabase_data:

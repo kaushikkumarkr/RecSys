@@ -112,3 +112,77 @@ def recommend(req: RecommendationRequest, db: Session = Depends(get_db)):
             strategy="batch" if hasattr(row, 'reasons') and row.reasons != 'Trending now' else 'popular'
         ) for row in candidates
     ]
+
+# --- RAG Chat Endpoint ---
+import requests
+
+MLX_SERVER_URL = os.getenv("MLX_SERVER_URL", "http://host.docker.internal:8502")
+
+class ChatRequest(BaseModel):
+    query: str
+    k: int = 5  # Number of context items to retrieve
+
+class ChatResponse(BaseModel):
+    answer: str
+    sources: List[str]
+
+@app.post("/chat", response_model=ChatResponse)
+def chat(req: ChatRequest, db: Session = Depends(get_db)):
+    """
+    RAG (Retrieval Augmented Generation) endpoint.
+    1. Retrieves relevant items via vector search.
+    2. Builds context from retrieved items.
+    3. Calls MLX LLM for answer generation.
+    """
+    model = get_model()
+    query_vector = model.encode(req.query).tolist()
+    
+    # Retrieve context
+    sql = text("""
+        SELECT i.item_id, i.title, i.category
+        FROM item_embeddings e
+        JOIN items i ON e.item_id = i.item_id
+        ORDER BY e.embedding <=> :vector
+        LIMIT :k
+    """)
+    results = db.execute(sql, {"vector": str(query_vector), "k": req.k}).fetchall()
+    
+    if not results:
+        return ChatResponse(answer="No relevant articles found.", sources=[])
+    
+    # Build context string
+    context_items = []
+    sources = []
+    for row in results:
+        context_items.append(f"- {row.title} (Category: {row.category})")
+        sources.append(row.item_id)
+    
+    context = "\n".join(context_items)
+    
+    # Build prompt
+    prompt = f"""You are a helpful assistant for a news recommendation system, please answer based on the provided context. Answer concisely.
+
+Context:
+{context}
+
+Question: {req.query}
+
+Answer:"""
+    
+    # Call MLX Server
+    try:
+        response = requests.post(
+            f"{MLX_SERVER_URL}/generate",
+            json={"prompt": prompt, "max_tokens": 200},
+            timeout=60
+        )
+        if response.status_code == 200:
+            data = response.json()
+            answer = data.get("response", data.get("error", "No response from LLM."))
+        else:
+            answer = f"LLM Error: {response.text}"
+    except requests.exceptions.RequestException as e:
+        # Fallback: Return context summary without LLM
+        answer = f"(LLM unavailable) Based on search, relevant articles include: {', '.join([r.title[:50] for r in results[:3]])}"
+    
+    return ChatResponse(answer=answer, sources=sources)
